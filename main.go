@@ -21,7 +21,7 @@ const NORMAL_ERR_RATE = 0.1
 const MAX_LINES = 0
 const LOG_EVERY = 100000
 const MAX_RETRY = 5
-const CHAN_SIZE = 10000
+const CHAN_SIZE = 3000000
 const BUF_SIZE = 0
 
 type Result struct {
@@ -64,7 +64,7 @@ func parseArgs() Config {
 	adid := flag.String("adid", "127.0.0.1:33015", "adid memcache address")
 	dvid := flag.String("dvid", "127.0.0.1:33016", "dvid memcache address")
 	chan_size := flag.Int("c", CHAN_SIZE, "chanel size")
-	buf_size := flag.Int("b", BUF_SIZE, "chanel size")
+	buf_size := flag.Int("b", BUF_SIZE, "buffer size")
 
 	flag.Parse()
 
