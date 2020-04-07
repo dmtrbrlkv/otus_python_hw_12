@@ -55,6 +55,8 @@ func parse_args() Config {
 	adid := flag.String("adid", "127.0.0.1:33015", "adid memcache address")
 	dvid := flag.String("dvid", "127.0.0.1:33016", "dvid memcache address")
 
+	flag.Parse()
+
 	return Config{
 		pattern: *pattern,
 		idfa:    *idfa,
@@ -210,6 +212,7 @@ func serialize_file_data(fn string, c_map map[string]chan Task, res_chan chan Re
 	var errors uint64
 
 	gzFile, _ := os.Open(fn)
+	defer gzFile.Close()
 
 	gzip_reader, _ := gzip.NewReader(gzFile)
 
