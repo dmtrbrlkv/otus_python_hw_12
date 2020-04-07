@@ -48,7 +48,7 @@ type Config struct {
 	dvid    string
 }
 
-func parse_args() Config {
+func parseArgs() Config {
 	pattern := flag.String("p", "/home/dmitry/Загрузки/logs/*.tsv.gz", "log file pattern")
 	idfa := flag.String("idfa", "127.0.0.1:33013", "idfa memcache address")
 	gaid := flag.String("gaid", "127.0.0.1:33014", "gaid memcache address")
@@ -66,7 +66,7 @@ func parse_args() Config {
 	}
 }
 
-func dot_rename(pth string) {
+func dotRename(pth string) {
 	head, fn := path.Split(pth)
 	new_pth := path.Join(head, "."+fn)
 	os.Rename(pth, new_pth)
@@ -83,7 +83,7 @@ func NewAppsInstalled(dev_id string, dev_type string, lat float64, lon float64, 
 	return a
 }
 
-func load_to_memcache(addr string, c chan Task, load_result chan Result) {
+func loadToMemcache(addr string, c chan Task, load_result chan Result) {
 	var err error
 
 	client := memcache.New(addr)
@@ -126,7 +126,7 @@ func load_to_memcache(addr string, c chan Task, load_result chan Result) {
 	}
 }
 
-func serialize_appsinstalled_to_task(a AppsInstalled) Task {
+func serializeAppsinstalledToTask(a AppsInstalled) Task {
 	ua := &appsinstalled.UserApps{
 		Apps: a.apps,
 		Lat:  &a.lat,
@@ -148,7 +148,7 @@ func serialize_appsinstalled_to_task(a AppsInstalled) Task {
 	return t
 }
 
-func parse_appsinstalled(line string) AppsInstalled {
+func parseAppsinstalled(line string) AppsInstalled {
 	var a AppsInstalled
 	var ui64 uint64
 
@@ -204,7 +204,7 @@ func parse_appsinstalled(line string) AppsInstalled {
 	return a
 }
 
-func serialize_file_data(fn string, c_map map[string]chan Task, res_chan chan Result) {
+func serializeFileData(fn string, c_map map[string]chan Task, res_chan chan Result) {
 	log.Printf("Begin read file %s\n", fn)
 
 	var a AppsInstalled
@@ -230,13 +230,13 @@ func serialize_file_data(fn string, c_map map[string]chan Task, res_chan chan Re
 
 		line := scanner.Text()
 
-		a = parse_appsinstalled(line)
+		a = parseAppsinstalled(line)
 		if a.dev_id == "" {
 			errors++
 			continue
 		}
 
-		t := serialize_appsinstalled_to_task(a)
+		t := serializeAppsinstalledToTask(a)
 		t = t
 
 		c := c_map[a.dev_type]
@@ -252,7 +252,7 @@ func serialize_file_data(fn string, c_map map[string]chan Task, res_chan chan Re
 func main() {
 	start := time.Now()
 
-	config := parse_args()
+	config := parseArgs()
 
 	pattern := config.pattern
 
@@ -273,7 +273,7 @@ func main() {
 		} else {
 			c_map[dev_type] = make(chan Task)
 		}
-		go load_to_memcache(addr, c_map[dev_type], load_res_chan)
+		go loadToMemcache(addr, c_map[dev_type], load_res_chan)
 		load_proc++
 	}
 
@@ -282,7 +282,7 @@ func main() {
 
 	fns, _ := filepath.Glob(pattern)
 	for _, fn := range fns {
-		go serialize_file_data(fn, c_map, parse_res_chan)
+		go serializeFileData(fn, c_map, parse_res_chan)
 		parse_proc++
 	}
 
@@ -314,7 +314,7 @@ func main() {
 	err_rate := float64(errors) / float64(procesed)
 	if err_rate < NORMAL_ERR_RATE {
 		for _, fn := range fns {
-			dot_rename(fn)
+			dotRename(fn)
 		}
 		log.Printf("Acceptable error rate (%f). Successfull load", err_rate)
 	} else {
