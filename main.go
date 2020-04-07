@@ -228,7 +228,7 @@ func serializeFileData(fn string, c_map map[string]chan Task, res_chan chan Resu
 		}
 
 		if (LOG_EVERY != 0) && (i%LOG_EVERY == 0) {
-			log.Printf("%d lines processd %s", i, fn)
+			log.Printf("%d lines processed %s", i, fn)
 		}
 
 		line := scanner.Text()
