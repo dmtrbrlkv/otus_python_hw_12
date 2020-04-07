@@ -49,7 +49,7 @@ type Config struct {
 }
 
 func parseArgs() Config {
-	pattern := flag.String("p", "/home/dmitry/Загрузки/logs/*.tsv.gz", "log file pattern")
+	pattern := flag.String("p", "*.tsv.gz", "log file pattern")
 	idfa := flag.String("idfa", "127.0.0.1:33013", "idfa memcache address")
 	gaid := flag.String("gaid", "127.0.0.1:33014", "gaid memcache address")
 	adid := flag.String("adid", "127.0.0.1:33015", "adid memcache address")
