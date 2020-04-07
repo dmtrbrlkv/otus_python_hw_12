@@ -41,11 +41,12 @@ type Task struct {
 }
 
 type Config struct {
-	pattern string
-	idfa    string
-	gaid    string
-	adid    string
-	dvid    string
+	pattern   string
+	idfa      string
+	gaid      string
+	adid      string
+	dvid      string
+	chan_size int
 }
 
 func parseArgs() Config {
@@ -54,15 +55,17 @@ func parseArgs() Config {
 	gaid := flag.String("gaid", "127.0.0.1:33014", "gaid memcache address")
 	adid := flag.String("adid", "127.0.0.1:33015", "adid memcache address")
 	dvid := flag.String("dvid", "127.0.0.1:33016", "dvid memcache address")
+	chan_size := flag.Int("cs", CHAN_SIZE, "chanel size")
 
 	flag.Parse()
 
 	return Config{
-		pattern: *pattern,
-		idfa:    *idfa,
-		gaid:    *gaid,
-		adid:    *adid,
-		dvid:    *dvid,
+		pattern:   *pattern,
+		idfa:      *idfa,
+		gaid:      *gaid,
+		adid:      *adid,
+		dvid:      *dvid,
+		chan_size: *chan_size,
 	}
 }
 
@@ -268,7 +271,7 @@ func main() {
 
 	c_map := make(map[string]chan Task)
 	for dev_type, addr := range device_memc {
-		if CHAN_SIZE > 0 {
+		if config.chan_size > 0 {
 			c_map[dev_type] = make(chan Task, CHAN_SIZE)
 		} else {
 			c_map[dev_type] = make(chan Task)
