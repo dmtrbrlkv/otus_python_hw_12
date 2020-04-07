@@ -21,21 +21,26 @@
 
   -adid string
   
-    	adid memcache address
+    adid memcache address
       
   -dvid string
   
-    	dvid memcache address
+    dvid memcache address
       
   -gaid string
   
-    	gaid memcache address
+    gaid memcache address
       
   -idfa string
   
-    	idfa memcache address
+    idfa memcache address
       
   -p string
   
-    	log file pattern
+    log file pattern
+
+  -cs int
+
+    chanel size (default 1000000)
+
       
