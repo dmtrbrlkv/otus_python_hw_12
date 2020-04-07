@@ -39,8 +39,12 @@
   
     log file pattern
 
-  -cs int
+  -c int
 
-    chanel size (default 1000000)
+    chanel size (default 3000000)
+    
+  -b int
+   
+    buffer size (default 0)
 
       
