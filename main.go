@@ -188,7 +188,8 @@ func serializeAppsinstalledToTask(a AppsInstalled) Task {
 
 	msg, err := proto.Marshal(ua)
 	if err != nil {
-		log.Fatal("Failed to encode user apps:", err)
+		log.Printf("Failed to encode user apps: %s", err)
+		return Task{}
 	}
 
 	t := Task{
@@ -302,6 +303,10 @@ func serializeFileData(fn string, cMap map[string]chan []Task, resChan chan Resu
 		}
 
 		t := serializeAppsinstalledToTask(a)
+		if t.key == "" {
+			errors++
+			continue
+		}
 
 		addToChanelWithCache(taskCache, cMap, a.devType, t, cacheSize)
 	}
