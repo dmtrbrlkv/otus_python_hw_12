@@ -23,18 +23,21 @@ const LOG_EVERY = 100000
 const MAX_RETRY = 5
 const CHAN_SIZE = 3000000
 const BUF_SIZE = 0
+const TIMEOUT = 30
 
 type Result struct {
 	processed uint64
 	errors    uint64
+	fn        string
+	err       error
 }
 
 type AppsInstalled struct {
-	dev_id   string
-	dev_type string
-	lat      float64
-	lon      float64
-	apps     []uint32
+	devId   string
+	devType string
+	lat     float64
+	lon     float64
+	apps    []uint32
 }
 
 type Task struct {
@@ -43,18 +46,19 @@ type Task struct {
 }
 
 type Config struct {
-	pattern   string
-	idfa      string
-	gaid      string
-	adid      string
-	dvid      string
-	chan_size int
-	buf_size  int
+	pattern  string
+	idfa     string
+	gaid     string
+	adid     string
+	dvid     string
+	chanSize int
+	bufSize  int
+	timeout  int
 }
 
 func (c Config) String() string {
-	return fmt.Sprintf("pattern = %s, idfa = %s, gaid = %s, adid = %s, dvid = %s, chan_size = %d, buf_size = %d",
-		c.pattern, c.idfa, c.gaid, c.adid, c.dvid, c.chan_size, c.buf_size)
+	return fmt.Sprintf("pattern = %s, idfa = %s, gaid = %s, adid = %s, dvid = %s, chan_size = %d, buf_size = %d, timeout = %d",
+		c.pattern, c.idfa, c.gaid, c.adid, c.dvid, c.chanSize, c.bufSize, c.timeout)
 }
 
 func parseArgs() Config {
@@ -63,74 +67,76 @@ func parseArgs() Config {
 	gaid := flag.String("gaid", "127.0.0.1:33014", "gaid memcache address")
 	adid := flag.String("adid", "127.0.0.1:33015", "adid memcache address")
 	dvid := flag.String("dvid", "127.0.0.1:33016", "dvid memcache address")
-	chan_size := flag.Int("c", CHAN_SIZE, "chanel size")
-	buf_size := flag.Int("b", BUF_SIZE, "buffer size")
+	chanSize := flag.Int("c", CHAN_SIZE, "chanel size")
+	bufSize := flag.Int("b", BUF_SIZE, "buffer size")
+	timeout := flag.Int("t", TIMEOUT, "memcache timeout")
 
 	flag.Parse()
 
 	return Config{
-		pattern:   *pattern,
-		idfa:      *idfa,
-		gaid:      *gaid,
-		adid:      *adid,
-		dvid:      *dvid,
-		chan_size: *chan_size,
-		buf_size:  *buf_size,
+		pattern:  *pattern,
+		idfa:     *idfa,
+		gaid:     *gaid,
+		adid:     *adid,
+		dvid:     *dvid,
+		chanSize: *chanSize,
+		bufSize:  *bufSize,
+		timeout:  *timeout,
 	}
 }
 
-func addToChanelWithCache(task_cache map[string][]Task, c_map map[string]chan []Task, key string, task Task, cache_size int) {
-	tasks, ok := task_cache[key]
+func addToChanelWithCache(taskCache map[string][]Task, cMap map[string]chan []Task, key string, task Task, cacheSize int) {
+	tasks, ok := taskCache[key]
 	if !ok {
 		tasks = make([]Task, 0)
 	}
 
 	tasks = append(tasks, task)
-	task_cache[key] = tasks
+	taskCache[key] = tasks
 
-	if cache_size == 0 || len(tasks) >= cache_size {
-		c := c_map[key]
+	if cacheSize == 0 || len(tasks) >= cacheSize {
+		c := cMap[key]
 		c <- tasks
 		tasks = make([]Task, 0)
-		task_cache[key] = tasks
+		taskCache[key] = tasks
 	}
 
 }
 
-func flushQueueCache(task_cache map[string][]Task, c_map map[string]chan []Task, key string) {
-	tasks, ok := task_cache[key]
+func flushQueueCache(taskCache map[string][]Task, cMap map[string]chan []Task, key string) {
+	tasks, ok := taskCache[key]
 	if !ok {
 		return
 	}
 
-	c := c_map[key]
+	c := cMap[key]
 	c <- tasks
 	tasks = make([]Task, 0)
-	task_cache[key] = tasks
+	taskCache[key] = tasks
 }
 
 func dotRename(pth string) {
 	head, fn := path.Split(pth)
-	new_pth := path.Join(head, "."+fn)
-	os.Rename(pth, new_pth)
+	newPth := path.Join(head, "."+fn)
+	os.Rename(pth, newPth)
 }
 
-func NewAppsInstalled(dev_id string, dev_type string, lat float64, lon float64, apps []uint32) AppsInstalled {
+func NewAppsInstalled(devId string, devType string, lat float64, lon float64, apps []uint32) AppsInstalled {
 	a := AppsInstalled{
-		dev_id:   dev_id,
-		dev_type: dev_type,
-		lat:      lat,
-		lon:      lon,
-		apps:     apps,
+		devId:   devId,
+		devType: devType,
+		lat:     lat,
+		lon:     lon,
+		apps:    apps,
 	}
 	return a
 }
 
-func loadToMemcache(addr string, c chan []Task, load_result chan Result) {
+func loadToMemcache(addr string, c chan []Task, timeout int, loadResult chan Result) {
 	var err error
 
 	client := memcache.New(addr)
-	//client.Timeout = 30
+	client.Timeout = time.Second * time.Duration(timeout)
 	var t Task
 	var tasks []Task
 
@@ -154,18 +160,18 @@ func loadToMemcache(addr string, c chan []Task, load_result chan Result) {
 				if err == nil {
 					break
 				}
-				log.Printf("Not loaded to %s (%e), retry", addr, err)
+				log.Printf("Not loaded to %s (%s), retry", addr, err)
 				time.Sleep(time.Second * 5)
 			}
 			if err != nil {
-				log.Printf("Not loaded to %s (%e), skip", addr, err)
+				log.Printf("Not loaded to %s (%s), skip", addr, err)
 				errors++
 			}
 		}
 	}
 
 	log.Printf("End load to %s, loaded %d messages", addr, n)
-	load_result <- Result{
+	loadResult <- Result{
 		processed: n,
 		errors:    errors,
 	}
@@ -178,7 +184,7 @@ func serializeAppsinstalledToTask(a AppsInstalled) Task {
 		Lon:  &a.lon,
 	}
 
-	key := a.dev_type + ":" + a.dev_id
+	key := a.devType + ":" + a.devId
 
 	msg, err := proto.Marshal(ua)
 	if err != nil {
@@ -197,41 +203,41 @@ func parseAppsinstalled(line string) AppsInstalled {
 	var a AppsInstalled
 	var ui64 uint64
 
-	line_parts := strings.Split(line, "\t")
-	if len(line_parts) < 5 {
+	lineParts := strings.Split(line, "\t")
+	if len(lineParts) < 5 {
 		log.Print("Wrong line format")
 		return a
 	}
 
-	dev_type := line_parts[0]
-	dev_id := line_parts[1]
-	lat := line_parts[2]
-	lon := line_parts[3]
-	raw_apps := line_parts[4]
+	devType := lineParts[0]
+	devId := lineParts[1]
+	lat := lineParts[2]
+	lon := lineParts[3]
+	rawApps := lineParts[4]
 
-	if dev_type == "" {
+	if devType == "" {
 		log.Print("Empty device type")
 		return a
 	}
 
-	if dev_id == "" {
+	if devId == "" {
 		log.Print("Empty device id")
 		return a
 	}
 
-	lat_f, err := strconv.ParseFloat(lat, 64)
+	latF, err := strconv.ParseFloat(lat, 64)
 	if err != nil {
 		log.Print("Not numeric lat")
 		return a
 	}
-	lon_f, err := strconv.ParseFloat(lon, 64)
+	lonF, err := strconv.ParseFloat(lon, 64)
 	if err != nil {
 		log.Print("Not numeric lon")
 		return a
 	}
 
-	apps := strings.Split(raw_apps, ",")
-	apps_i := make([]uint32, len(apps))
+	apps := strings.Split(rawApps, ",")
+	appsI := make([]uint32, len(apps))
 	for i, app := range apps {
 		ui64, err = strconv.ParseUint(app, 10, 64)
 		if err != nil {
@@ -239,31 +245,43 @@ func parseAppsinstalled(line string) AppsInstalled {
 			break
 		}
 
-		apps_i[i] = uint32(ui64)
+		appsI[i] = uint32(ui64)
 	}
 	if err != nil {
 		return a
 	}
 
-	a = NewAppsInstalled(dev_id, dev_type, lat_f, lon_f, apps_i)
+	a = NewAppsInstalled(devId, devType, latF, lonF, appsI)
 	return a
 }
 
-func serializeFileData(fn string, c_map map[string]chan []Task, res_chan chan Result, cache_size int) {
-	task_cache := make(map[string][]Task)
+func serializeFileData(fn string, cMap map[string]chan []Task, resChan chan Result, cacheSize int) {
+	taskCache := make(map[string][]Task)
 
 	log.Printf("Begin read file %s\n", fn)
 
 	var a AppsInstalled
 	var i uint64
 	var errors uint64
+	var err error
 
-	gzFile, _ := os.Open(fn)
+	gzFile, err := os.Open(fn)
+	if err != nil {
+		log.Printf("Error open file %s (%s)", fn, err)
+		resChan <- Result{i, errors, fn, err}
+		return
+	}
+
 	defer gzFile.Close()
 
-	gzip_reader, _ := gzip.NewReader(gzFile)
+	gzipReader, err := gzip.NewReader(gzFile)
+	if err != nil {
+		log.Printf("Error open file %s (%s)", fn, err)
+		resChan <- Result{i, errors, fn, err}
+		return
+	}
 
-	scanner := bufio.NewScanner(gzip_reader)
+	scanner := bufio.NewScanner(gzipReader)
 	for scanner.Scan() {
 		i++
 
@@ -278,30 +296,34 @@ func serializeFileData(fn string, c_map map[string]chan []Task, res_chan chan Re
 		line := scanner.Text()
 
 		a = parseAppsinstalled(line)
-		if a.dev_id == "" {
+		if a.devId == "" {
 			errors++
 			continue
 		}
 
 		t := serializeAppsinstalledToTask(a)
-		t = t
 
-		//c := c_map[a.dev_type]
-		//c <- t
-
-		addToChanelWithCache(task_cache, c_map, a.dev_type, t, cache_size)
+		addToChanelWithCache(taskCache, cMap, a.devType, t, cacheSize)
 	}
 
-	for key := range c_map {
-		flushQueueCache(task_cache, c_map, key)
+	if err := scanner.Err(); err != nil {
+		log.Printf("Error read file %s\n", fn)
+		resChan <- Result{i, errors, fn, err}
+		return
+	}
+
+	for key := range cMap {
+		flushQueueCache(taskCache, cMap, key)
 	}
 
 	log.Printf("End read file %s\n", fn)
 
-	res_chan <- Result{i, errors}
+	resChan <- Result{i, errors, fn, err}
 }
 
 func main() {
+	var processedFiles []string
+
 	start := time.Now()
 
 	config := parseArgs()
@@ -310,51 +332,55 @@ func main() {
 
 	pattern := config.pattern
 
-	device_memc := map[string]string{
+	deviceMemc := map[string]string{
 		"idfa": config.idfa,
 		"gaid": config.gaid,
 		"adid": config.adid,
 		"dvid": config.dvid,
 	}
 
-	load_res_chan := make(chan Result)
-	load_proc := 0
+	timeout := config.timeout
 
-	c_map := make(map[string]chan []Task)
-	for dev_type, addr := range device_memc {
-		if config.chan_size > 0 {
-			c_map[dev_type] = make(chan []Task, CHAN_SIZE)
+	loadResChan := make(chan Result)
+	loadProc := 0
+
+	cMap := make(map[string]chan []Task)
+	for devType, addr := range deviceMemc {
+		if config.chanSize > 0 {
+			cMap[devType] = make(chan []Task, CHAN_SIZE)
 		} else {
-			c_map[dev_type] = make(chan []Task)
+			cMap[devType] = make(chan []Task)
 		}
-		go loadToMemcache(addr, c_map[dev_type], load_res_chan)
-		load_proc++
+		go loadToMemcache(addr, cMap[devType], timeout, loadResChan)
+		loadProc++
 	}
 
-	parse_res_chan := make(chan Result)
-	parse_proc := 0
+	parseResChan := make(chan Result)
+	parseProc := 0
 
 	fns, _ := filepath.Glob(pattern)
 	for _, fn := range fns {
-		go serializeFileData(fn, c_map, parse_res_chan, config.buf_size)
-		parse_proc++
+		go serializeFileData(fn, cMap, parseResChan, config.bufSize)
+		parseProc++
 	}
 
 	var processed uint64
 	var errors uint64
 
-	for i := 1; i <= parse_proc; i++ {
-		res := <-parse_res_chan
-		//processed += res.processed
+	for i := 1; i <= parseProc; i++ {
+		res := <-parseResChan
 		errors += res.errors
+		if res.err == nil {
+			processedFiles = append(processedFiles, res.fn)
+		}
 	}
 
-	for _, c := range c_map {
+	for _, c := range cMap {
 		close(c)
 	}
 
-	for i := 1; i <= load_proc; i++ {
-		res := <-load_res_chan
+	for i := 1; i <= loadProc; i++ {
+		res := <-loadResChan
 		processed += res.processed
 		errors += res.errors
 	}
@@ -365,14 +391,14 @@ func main() {
 		return
 	}
 
-	err_rate := float64(errors) / float64(processed)
-	if err_rate < NORMAL_ERR_RATE {
-		for _, fn := range fns {
+	errRate := float64(errors) / float64(processed)
+	if errRate < NORMAL_ERR_RATE {
+		for _, fn := range processedFiles {
 			dotRename(fn)
 		}
-		log.Printf("Acceptable error rate (%f). Successfull load", err_rate)
+		log.Printf("Acceptable error rate (%f). Successfull load", errRate)
 	} else {
-		log.Printf("High error rate (%f > %f). Failed load", err_rate, NORMAL_ERR_RATE)
+		log.Printf("High error rate (%f > %f). Failed load", errRate, NORMAL_ERR_RATE)
 	}
 
 	t := time.Now()

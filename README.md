@@ -19,32 +19,36 @@
 
 ### Usage:
 
-  -adid string
+    -adid string
   
-    adid memcache address
+        adid memcache address
+          
+    -dvid string
       
-  -dvid string
-  
-    dvid memcache address
+        dvid memcache address
+          
+    -gaid string
       
-  -gaid string
-  
-    gaid memcache address
+        gaid memcache address
+          
+    -idfa string
       
-  -idfa string
-  
-    idfa memcache address
+        idfa memcache address
+          
+    -p string
       
-  -p string
-  
-    log file pattern
-
-  -c int
-
-    chanel size (default 3000000)
+        log file pattern
     
-  -b int
-   
-    buffer size (default 0)
+    -c int
+    
+        chanel size (default 3000000)
+        
+    -b int
+       
+        buffer size (default 0)
+        
+    -t int
+             
+        memcache timeout (default 30)
 
       
